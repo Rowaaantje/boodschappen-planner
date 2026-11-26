@@ -96,6 +96,11 @@
     </div>
   </section>
 
+  <div class="card no-print hidden" id="installCard">
+    <strong>Installeer de app</strong>
+    <p class="muted small" id="installHint">Zet Smart Grocery op je beginscherm voor snelle toegang, ook zonder browser.</p>
+    <button class="btn hidden" id="installBtn" style="margin-top:12px;width:100%">Installeer app</button>
+  </div>
   <div class="card no-print" style="margin-top:32px">
     <strong>Productdata</strong>
     <p class="muted small">
@@ -344,6 +349,43 @@ $("fileInput").addEventListener("change", async (e) => {
 });
 
 renderStep();
+</script>
+<script>
+(function () {
+  const card = document.getElementById('installCard');
+  const btn = document.getElementById('installBtn');
+  const hint = document.getElementById('installHint');
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (standalone) return; // al geïnstalleerd, toon niets
+
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  let deferred = null;
+
+  // Android/Chrome/Edge: echte installatieknop
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    card.classList.remove('hidden');
+    btn.classList.remove('hidden');
+  });
+  window.addEventListener('appinstalled', () => {
+    card.classList.add('hidden');
+    deferred = null;
+  });
+  btn.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+    btn.classList.add('hidden');
+  });
+
+  // iPhone/iPad: Safari kan niet via een knop installeren, dus uitleg tonen
+  if (isIOS) {
+    card.classList.remove('hidden');
+    hint.textContent = 'Tik op het deelicoon onderaan in Safari en kies "Zet op beginscherm".';
+  }
+})();
 </script>
 <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
 </body>

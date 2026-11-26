@@ -1,4 +1,4 @@
-const CACHE = 'smart-grocery-v1';
+const CACHE = 'smart-grocery-v1.1';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
