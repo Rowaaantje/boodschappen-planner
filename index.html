@@ -28,7 +28,19 @@
     margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     background: var(--bg); color: var(--ink); line-height: 1.5;
   }
-  main { max-width: 640px; margin: 0 auto; padding: 32px 20px 64px; }
+  .shell { display: flex; gap: 24px; justify-content: center; align-items: flex-start; max-width: 1200px; margin: 0 auto; padding: 0 12px; }
+  main { flex: 0 1 640px; min-width: 0; max-width: 640px; padding: 32px 20px 64px; }
+  .side { display: none; width: 380px; flex: 0 0 380px; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-top: 32px; }
+  .side summary { cursor: pointer; font-size: 16px; margin-bottom: 12px; }
+  .side td, .side th { font-size: 13px; padding: 8px 4px; }
+  .search { width: 100%; font: inherit; font-size: 15px; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); margin-bottom: 10px; }
+  @media (min-width: 1440px) {
+    .shell { display: block; max-width: none; margin: 0; padding: 0; }
+    main { max-width: 640px; margin: 0 auto; flex: none; width: auto; }
+    .side { display: block; position: fixed; top: 0; left: 0; width: 380px; height: 100vh; margin: 0; padding: 20px 16px; background: var(--bg); border: none; border-radius: 0; overflow: auto; z-index: 5; }
+    .mobile-only { display: none !important; }
+    #productPage { display: none !important; }
+  }
   h1 { font-size: 28px; margin: 0 0 6px; }
   h2 { font-size: 22px; margin: 0 0 6px; }
   .kicker { color: var(--accent); letter-spacing: 2px; font-size: 12px; font-weight: 800; }
@@ -37,21 +49,12 @@
   .progress { height: 6px; background: var(--border); border-radius: 3px; margin: 20px 0 8px; overflow: hidden; }
   .progress > div { height: 100%; background: var(--accent); transition: width .3s; }
   label.field { display: block; font-weight: 700; margin: 18px 0 8px; }
-  input[type="text"], input[type="number"] {
-    width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 12px;
-    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
-  }
+  input[type="text"], input[type="number"] { width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip {
-    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
-    padding: 10px 16px; border-radius: 999px; font: inherit; cursor: pointer; min-width: 44px;
-  }
+  .chip { border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 10px 16px; border-radius: 999px; font: inherit; cursor: pointer; min-width: 44px; }
   .chip[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
   .actions { display: flex; gap: 10px; margin-top: 28px; }
-  .btn {
-    flex: 1; font: inherit; font-weight: 700; padding: 15px; border-radius: 14px; border: none;
-    background: var(--accent); color: #fff; cursor: pointer;
-  }
+  .btn { flex: 1; font: inherit; font-weight: 700; padding: 15px; border-radius: 14px; border: none; background: var(--accent); color: #fff; cursor: pointer; }
   .btn.secondary { background: var(--accent-soft); color: var(--accent); }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
   table { width: 100%; border-collapse: collapse; margin-top: 8px; }
@@ -63,21 +66,32 @@
   .over { color: var(--danger); font-weight: 700; }
   .hidden { display: none; }
   .small { font-size: 13px; }
-  .file { margin-top: 12px; font-size: 14px; }
   .none { color: var(--muted); font-style: italic; padding: 10px 0; }
   @media print { .no-print { display: none; } body { background: #fff; color: #000; } .card { border: none; } }
+  .done td { color: var(--muted); text-decoration: line-through; transition: color .3s, opacity .3s; }
+  .tick { width: 22px; height: 22px; cursor: pointer; }
 </style>
 </head>
 <body>
+<div class="shell">
+<aside class="side">
+  <details open>
+    <summary><strong>Alle producten</strong> (<span id="prodCount">0</span>)</summary>
+    <input type="text" id="sideSearch" class="search" placeholder="Zoek op naam of categorie">
+    <div id="sideBody"></div>
+  </details>
+</aside>
 <main>
   <div class="kicker">SMART GROCERY</div>
   <h1 id="title">Slimmer boodschappen doen.</h1>
+  <button class="btn secondary mobile-only" id="openProducts" style="margin-bottom:16px">Alle producten bekijken</button>
 
   <!-- ===== Wizard ===== -->
   <section id="wizard">
     <div class="progress"><div id="bar" style="width:0%"></div></div>
     <p class="muted small" id="stepLabel"></p>
 
+    <div id="savedBox"></div>
     <div class="card" id="step"></div>
     <div class="actions" id="nav"></div>
   </section>
@@ -88,6 +102,7 @@
       <h2>Jouw boodschappenlijst</h2>
       <p class="muted" id="resultMeta"></p>
       <div id="resultBody"></div>
+      <p class="muted small" id="saveStatus"></p>
     </div>
     <div id="resultNotice"></div>
     <div class="actions no-print">
@@ -101,16 +116,14 @@
     <p class="muted small" id="installHint">Zet Smart Grocery op je beginscherm voor snelle toegang, ook zonder browser.</p>
     <button class="btn hidden" id="installBtn" style="margin-top:12px;width:100%">Installeer app</button>
   </div>
-  <div class="card no-print" style="margin-top:32px">
-    <strong>Productdata</strong>
-    <p class="muted small">
-      Er worden nu voorbeeldproducten gebruikt met <em>testprijzen</em>. Laad hieronder je eigen
-      <code>jumbo_producten.json</code> van de scraper voor echte prijzen.
-    </p>
-    <input type="file" id="fileInput" accept=".json,application/json" class="file">
-    <div class="muted small" id="dataInfo"></div>
-  </div>
+  <section id="productPage" class="hidden">
+    <button class="btn secondary" id="backProducts" style="margin-bottom:16px">← Terug</button>
+    <h2>Alle producten</h2>
+    <input type="text" id="mobileSearch" class="search" placeholder="Zoek op naam of categorie">
+    <div class="card" id="mobileBody" style="padding:8px 14px"></div>
+  </section>
 </main>
+</div>
 
 <script>
 // ---------- Config ----------
@@ -128,30 +141,28 @@ const MEAL_TEMPLATE = {
 };
 const OPTIONAL_CATEGORIES = new Set(["snack", "beleg", "fruit"]); // worden eerst geschrapt bij te hoog budget
 
-// Voorbeelddata (testprijzen, NIET actueel)
-const SAMPLE_PRODUCTS = [
-  { naam: "Voorbeeld brood (800 g)", prijs_cent: 129, hoeveelheid: "800 g", categorie: "brood", allergenen: ["Gluten"], dieet: [] },
-  { naam: "Voorbeeld glutenvrij brood", prijs_cent: 329, hoeveelheid: "400 g", categorie: "brood", allergenen: [], dieet: ["Glutenvrij"] },
-  { naam: "Voorbeeld halfvolle melk (1 L)", prijs_cent: 129, hoeveelheid: "1 L", categorie: "zuivel", allergenen: ["Lactose"], dieet: ["Vegetarisch"] },
-  { naam: "Voorbeeld havermelk (1 L)", prijs_cent: 189, hoeveelheid: "1 L", categorie: "zuivel", allergenen: [], dieet: ["Veganistisch", "Vegetarisch"] },
-  { naam: "Voorbeeld kipfilet (500 g)", prijs_cent: 749, hoeveelheid: "500 g", categorie: "vlees", allergenen: [], dieet: [] },
-  { naam: "Voorbeeld gehakt (500 g)", prijs_cent: 599, hoeveelheid: "500 g", categorie: "vlees", allergenen: [], dieet: [] },
-  { naam: "Voorbeeld zalmfilet (300 g)", prijs_cent: 999, hoeveelheid: "300 g", categorie: "vis", allergenen: ["Vis"], dieet: [] },
-  { naam: "Voorbeeld tofu (300 g)", prijs_cent: 229, hoeveelheid: "300 g", categorie: "vega", allergenen: ["Soja"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld paprika (3 stuks)", prijs_cent: 199, hoeveelheid: "3 stuks", categorie: "groente", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld broccoli (500 g)", prijs_cent: 179, hoeveelheid: "500 g", categorie: "groente", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld aardappelen (2 kg)", prijs_cent: 329, hoeveelheid: "2 kg", categorie: "aardappel_pasta", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld pasta (500 g)", prijs_cent: 139, hoeveelheid: "500 g", categorie: "aardappel_pasta", allergenen: ["Gluten"], dieet: ["Vegetarisch", "Veganistisch"] },
-  { naam: "Voorbeeld appels (1,5 kg)", prijs_cent: 195, hoeveelheid: "1,5 kg", categorie: "fruit", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld kaas plakken (400 g)", prijs_cent: 579, hoeveelheid: "400 g", categorie: "beleg", allergenen: ["Lactose"], dieet: ["Vegetarisch", "Glutenvrij"] },
-  { naam: "Voorbeeld pindakaas (350 g)", prijs_cent: 249, hoeveelheid: "350 g", categorie: "beleg", allergenen: ["Noten"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld eieren (10 stuks)", prijs_cent: 299, hoeveelheid: "10 stuks", categorie: "zuivel", allergenen: ["Ei"], dieet: ["Vegetarisch", "Glutenvrij"] },
-  { naam: "Voorbeeld noten-mix (200 g)", prijs_cent: 349, hoeveelheid: "200 g", categorie: "snack", allergenen: ["Noten"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
-  { naam: "Voorbeeld crackers (200 g)", prijs_cent: 159, hoeveelheid: "200 g", categorie: "snack", allergenen: ["Gluten"], dieet: ["Vegetarisch", "Veganistisch"] },
+
+// ---------- Maaltijdideeën ----------
+// cats = productcategorieën die nodig zijn (zie scraper: vlees, vis, vega, groente, fruit, aardappel_pasta, brood, beleg, zuivel)
+const MEALS = [
+  { naam: "Pasta met groente", cats: ["aardappel_pasta", "groente"] },
+  { naam: "Pasta met gehakt", cats: ["vlees", "aardappel_pasta"] },
+  { naam: "Kip met aardappel en groente", cats: ["vlees", "aardappel_pasta", "groente"] },
+  { naam: "Gehaktballen met aardappel en groente", cats: ["vlees", "aardappel_pasta", "groente"] },
+  { naam: "Vis met aardappel en groente", cats: ["vis", "aardappel_pasta", "groente"] },
+  { naam: "Tofu-roerbak met rijst", cats: ["vega", "aardappel_pasta", "groente"] },
+  { naam: "Omelet met groente", cats: ["zuivel", "groente"] },
+  { naam: "Brood met beleg en fruit", cats: ["brood", "beleg", "fruit"] },
+  { naam: "Brood met zuivel en fruit", cats: ["brood", "zuivel", "fruit"] },
+  { naam: "Yoghurt met fruit", cats: ["zuivel", "fruit"] },
 ];
 
 // ---------- State ----------
+const STORAGE_KEY = "smartGrocery.lijst";
 const state = {
+  plan: null,
+  checked: new Set(),
+  pending: new Set(),
   step: 0,
   budget: 100,
   days: 7,
@@ -159,8 +170,7 @@ const state = {
   allergies: [],
   diets: [],
   meals: ["Ontbijt", "Lunch", "Avondeten"],
-  products: SAMPLE_PRODUCTS,
-  usingSample: true,
+  products: [],
 };
 
 // ---------- Helpers ----------
@@ -173,7 +183,7 @@ function guessMeta(p) {
   const n = p.naam.toLowerCase();
   const rules = [
     [/brood|bolletje|stokbrood|bao|broodje|bagel/, "brood", ["Gluten"]],
-    [/melk|kaas|yoghurt|boter|kwark|skyr|room|ei(eren)?\b|eieren/, "zuivel", ["Lactose"]],
+    [/melk|kaas|yoghurt|boter|kwark|skyr|room|eieren/, "zuivel", ["Lactose"]],
     [/kip|gehakt|worst|spek|vlees|rund|varken/, "vlees", []],
     [/zalm|tonijn|kabeljauw|haring|vis\b|garnaal/, "vis", ["Vis"]],
     [/tofu|tempeh|seitan|vega/, "vega", ["Soja"]],
@@ -204,40 +214,86 @@ function isAllowed(p) {
   return true;
 }
 
+const NAME_EXCLUDE = {
+  vlees: /soep|bouillon|saus|hondenvoer|kattenvoer|kroket|bitterbal|nugget|snack|chips/i,
+  vis: /soep|saus|kroket|visstick|hondenvoer|kattenvoer|snack|chips/i,
+  groente: /soep|saus|chips|snack|sap|conserv|ketchup|mayonaise|dressing|pizza|maaltijd|gerecht/i,
+  fruit: /sap|snoep|drop|chips|yoghurt|smoothie|gummi|compote|drank|vruchtensap/i,
+  brood: /beleg|bakmix|paneermeel|crackers|beschuit|pizza|tortilla|wrap|saus|koek|pannenkoek|toast/i,
+  zuivel: /kaas|dessert|pudding|toetje|vla|ijs|kookroom|crème|creme|drank|smaak|maaltijd/i,
+  aardappel_pasta: /chips|puree|kroket|saus|soep|maaltijd|wokgroente/i,
+  beleg: /koek|snoep|chocolade/i,
+  snack: /aanbieding|kruidnoot|sinterklaas/i,
+  vega: /soep|saus|maaltijd/i,
+};
+
 function cheapest(categorie) {
   return state.products
-    .filter((p) => p.categorie === categorie && isAllowed(p))
+    .filter((p) => p.categorie === categorie && isAllowed(p) && !(NAME_EXCLUDE[categorie] || /$^/).test(p.naam))
     .sort((a, b) => a.prijs_cent - b.prijs_cent)[0] || null;
 }
 
 // ---------- Plan genereren ----------
+function eligibleProducts(cat) {
+  const ex = NAME_EXCLUDE[cat] || /$^/;
+  return state.products
+    .filter((p) => p.categorie === cat && isAllowed(p) && !ex.test(p.naam))
+    .sort((a, b) => a.prijs_cent - b.prijs_cent);
+}
+
 function buildPlan() {
-  // Hoeveelheid per categorie: dagen × personen × gewicht per maaltijd
   const need = new Map();
   for (const meal of state.meals) {
-    for (const [cat, weight] of MEAL_TEMPLATE[meal] || []) {
-      need.set(cat, (need.get(cat) || 0) + weight);
+    for (const [cat, weight] of MEAL_TEMPLATE[meal] || []) need.set(cat, (need.get(cat) || 0) + weight);
+  }
+  const budgetCent = Math.round(state.budget * 100);
+  const qtyFor = (cat) => Math.max(1, Math.ceil(need.get(cat) * state.days * state.people));
+
+  // Stap 1: per categorie het goedkoopste product
+  const pools = new Map();
+  const cursor = new Map();
+  const lines = [];
+  for (const cat of need.keys()) {
+    const pool = eligibleProducts(cat);
+    if (!pool.length) continue;
+    pools.set(cat, pool);
+    cursor.set(cat, 1);
+    lines.push({ cat, product: pool[0], qty: qtyFor(cat), cost: pool[0].prijs_cent * qtyFor(cat) });
+  }
+  const total = () => lines.reduce((sum, l) => sum + l.cost, 0);
+
+  // Stap 2: te duur? schrap optionele categorieën
+  const dropped = [];
+  const droppedCats = new Set();
+  for (const oc of OPTIONAL_CATEGORIES) {
+    if (total() <= budgetCent) break;
+    const i = lines.findIndex((l) => l.cat === oc);
+    if (i >= 0) {
+      dropped.push(lines[i].product.naam);
+      droppedCats.add(oc);
+      lines.splice(i, 1);
     }
   }
-  let lines = [];
-  for (const [cat, weight] of need) {
-    const product = cheapest(cat);
-    if (!product) continue;
-    const qty = Math.max(1, Math.ceil(weight * state.days * state.people));
-    lines.push({ cat, product, qty, cost: product.prijs_cent * qty });
+
+  // Stap 3: spreiden. Per categorie extra producten toevoegen, om de beurt, tot het budget bijna op is
+  let added = true;
+  while (added && total() < budgetCent * 0.95) {
+    added = false;
+    for (const cat of pools.keys()) {
+      if (droppedCats.has(cat)) continue;
+      const pool = pools.get(cat);
+      const i = cursor.get(cat);
+      if (i >= pool.length) continue;
+      const product = pool[i];
+      cursor.set(cat, i + 1);
+      const cost = product.prijs_cent * qtyFor(cat);
+      if (total() + cost > budgetCent) continue;
+      lines.push({ cat, product, qty: qtyFor(cat), cost });
+      added = true;
+    }
   }
 
-  // Te duur? Schrap optionele categorieën, daarna de duurste rest
-  let total = () => lines.reduce((s, l) => s + l.cost, 0);
-  const budgetCent = Math.round(state.budget * 100);
-  const dropped = [];
-  for (const cat of [...OPTIONAL_CATEGORIES]) {
-    if (total() <= budgetCent) break;
-    const i = lines.findIndex((l) => l.cat === cat);
-    if (i >= 0) { dropped.push(lines[i].product.naam); lines.splice(i, 1); }
-  }
-  const over = total() > budgetCent;
-  return { lines, total: total(), budgetCent, dropped, over };
+  return { lines, total: total(), budgetCent, dropped, over: total() > budgetCent };
 }
 
 // ---------- Wizard ----------
@@ -247,6 +303,7 @@ function chipGroup(options, selected, onToggle) {
 }
 
 function renderStep() {
+  renderSavedBox();
   const s = STEPS[state.step];
   $("bar").style.width = `${((state.step + 1) / STEPS.length) * 100}%`;
   $("stepLabel").textContent = `Stap ${state.step + 1} van ${STEPS.length}`;
@@ -299,56 +356,211 @@ function readInputs() {
 }
 
 // ---------- Resultaat ----------
-function showResult() {
-  const plan = buildPlan();
+function renderResultBody() {
+  const plan = state.plan;
+  if (!plan.lines.length) {
+    $("resultBody").innerHTML = '<p class="none">Geen producten gevonden die passen bij je voorkeuren.</p>';
+    return;
+  }
+  const doneLines = plan.lines.filter((l) => state.checked.has(l.product.url));
+  const left = plan.lines.filter((l) => !state.checked.has(l.product.url));
+  const leftCost = left.reduce((sum, l) => sum + l.cost, 0);
+  const isPending = (l) => state.pending.has(l.product.url);
+  const top = plan.lines.filter((l) => !state.checked.has(l.product.url) || isPending(l));
+  const bottom = plan.lines.filter((l) => state.checked.has(l.product.url) && !isPending(l));
+  $("resultBody").innerHTML = `
+    <p class="small" style="margin:8px 0"><strong>Nog te halen:</strong> ${left.length} producten, ${euro(leftCost)}
+      <span class="muted">(${doneLines.length} afgevinkt)</span></p>
+    <table>
+      <thead><tr><th style="width:34px"></th><th>Product</th><th class="num">Aantal</th><th class="num">Prijs</th></tr></thead>
+      <tbody>${[...top, ...bottom].map((l) => {
+        const done = state.checked.has(l.product.url);
+        return `<tr class="${done ? "done" : ""}">
+          <td><input type="checkbox" class="tick" data-url="${esc(l.product.url)}" ${done ? "checked" : ""} aria-label="Afvinken"></td>
+          <td>${esc(l.product.naam)}<div class="muted small">${esc(l.product.hoeveelheid || "")}</div></td>
+          <td class="num">${l.qty}×</td>
+          <td class="num">${euro(l.cost)}</td></tr>`;
+      }).join("")}</tbody>
+      <tfoot><tr><td class="total" colspan="3">Totaal</td><td class="num total ${plan.over ? "over" : ""}">${euro(plan.total)}</td></tr></tfoot>
+    </table>`;
+}
+
+function saveList() {
+  if (!state.plan) return;
+  const data = {
+    savedAt: new Date().toISOString(),
+    budget: state.budget, days: state.days, people: state.people,
+    allergies: state.allergies, diets: state.diets, meals: state.meals,
+    items: state.plan.lines.map((l) => ({ cat: l.cat, url: l.product.url, qty: l.qty })),
+    checked: [...state.checked],
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    $("saveStatus").textContent = "Automatisch opgeslagen op dit apparaat.";
+  } catch (err) {
+    $("saveStatus").textContent = "Opslaan lukt niet op dit apparaat.";
+  }
+}
+
+function readSaved() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (err) { return null; }
+}
+
+function renderSavedBox() {
+  const box = $("savedBox");
+  const saved = readSaved();
+  if (!saved || !state.products.length) { box.innerHTML = ""; return; }
+  const datum = new Date(saved.savedAt).toLocaleString("nl-NL", { dateStyle: "short", timeStyle: "short" });
+  box.innerHTML = `<div class="card" style="margin-top:0">
+      <strong>Opgeslagen lijst</strong>
+      <p class="muted small">Van ${datum}</p>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn secondary" id="clearSaved">Wissen</button>
+        <button class="btn" id="openSaved">Openen</button>
+      </div></div>`;
+  $("openSaved").addEventListener("click", openSavedList);
+  $("clearSaved").addEventListener("click", () => { localStorage.removeItem(STORAGE_KEY); renderSavedBox(); });
+}
+
+function openSavedList() {
+  const saved = readSaved();
+  if (!saved) return;
+  const byUrl = new Map(state.products.map((p) => [p.url, p]));
+  const lines = [];
+  let missing = 0;
+  for (const item of saved.items) {
+    const product = byUrl.get(item.url);
+    if (!product) { missing++; continue; }
+    lines.push({ cat: item.cat, product, qty: item.qty, cost: product.prijs_cent * item.qty });
+  }
+  const budgetCent = Math.round(saved.budget * 100);
+  const total = lines.reduce((sum, l) => sum + l.cost, 0);
+  Object.assign(state, {
+    budget: saved.budget, days: saved.days, people: saved.people,
+    allergies: saved.allergies, diets: saved.diets, meals: saved.meals,
+  });
+  state.plan = { lines, total, budgetCent, dropped: [], over: total > budgetCent };
+  state.checked = new Set(saved.checked);
+  showResultView();
+  $("saveStatus").textContent = missing
+    ? `${missing} producten uit deze lijst bestaan niet meer in de productdata.`
+    : "Opgeslagen lijst geopend.";
+}
+
+function showResultView() {
+  const plan = state.plan;
   $("wizard").classList.add("hidden");
   $("result").classList.remove("hidden");
   $("resultMeta").textContent =
     `${state.people} ${state.people === 1 ? "persoon" : "personen"} · ${state.days} dagen · budget ${euro(plan.budgetCent)}`;
-
-  if (!plan.lines.length) {
-    $("resultBody").innerHTML = `<p class="none">Geen producten gevonden die passen bij je voorkeuren.</p>`;
-  } else {
-    $("resultBody").innerHTML = `<table>
-      <thead><tr><th>Product</th><th class="num">Aantal</th><th class="num">Prijs</th></tr></thead>
-      <tbody>${plan.lines.map((l) => `<tr>
-        <td>${esc(l.product.naam)}<div class="muted small">${esc(l.product.hoeveelheid || "")}</div></td>
-        <td class="num">${l.qty}×</td>
-        <td class="num">${euro(l.cost)}</td></tr>`).join("")}
-      </tbody>
-      <tfoot><tr><td class="total" colspan="2">Totaal</td><td class="num total ${plan.over ? "over" : ""}">${euro(plan.total)}</td></tr></tfoot>
-    </table>`;
-  }
+  renderResultBody();
 
   let notes = "";
   if (plan.over) notes += `<div class="notice">Het totaal ligt boven je budget van ${euro(plan.budgetCent)}. Verhoog het budget of kies minder maaltijden.</div>`;
   if (plan.dropped.length) notes += `<div class="notice">Om binnen budget te blijven zijn deze optionele items weggelaten: ${esc(plan.dropped.join(", "))}.</div>`;
-  if (state.usingSample) notes += `<div class="notice">Let op: dit gebruikt voorbeeldprijzen. Laad je scraper-bestand voor actuele prijzen.</div>`;
+  const have = new Set(plan.lines.map((l) => l.cat));
+  const compleet = MEALS.filter((m) => m.cats.every((c) => have.has(c)));
+  notes += `<div class="card"><h2>Maaltijdideeën</h2>${compleet.length
+    ? `<ul>${compleet.map((m) => `<li>${esc(m.naam)}</li>`).join("")}</ul>`
+    : '<p class="muted">Geen complete maaltijd met deze lijst. Verhoog je budget of kies meer eetmomenten.</p>'}</div>`;
   notes += `<p class="muted small">De hoeveelheden zijn een schatting op basis van dagen, personen en maaltijden. Controleer allergenen altijd zelf op het etiket, want die worden hier uit de productnaam afgeleid.</p>`;
   $("resultNotice").innerHTML = notes;
 }
 
+function showResult() {
+  state.plan = buildPlan();
+  state.checked = new Set();
+  state.pending = new Set();
+  showResultView();
+  saveList();
+}
+
 // ---------- Events ----------
+$("resultBody").addEventListener("change", (e) => {
+  const box = e.target.closest ? e.target.closest(".tick") : null;
+  if (!box) return;
+  const url = box.dataset.url;
+  if (box.checked) {
+    state.checked.add(url);
+    state.pending.add(url);
+    renderResultBody();
+    saveList();
+    setTimeout(() => { state.pending.delete(url); renderResultBody(); }, 600);
+  } else {
+    state.checked.delete(url);
+    state.pending.delete(url);
+    renderResultBody();
+    saveList();
+  }
+});
 $("editBtn").addEventListener("click", () => { $("result").classList.add("hidden"); $("wizard").classList.remove("hidden"); state.step = 0; renderStep(); });
 $("printBtn").addEventListener("click", () => window.print());
 
-$("fileInput").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const raw = JSON.parse(await file.text());
-    if (!Array.isArray(raw)) throw new Error("Verwacht een lijst met producten.");
-    const products = normalizeProducts(raw);
-    if (!products.length) throw new Error("Geen bruikbare producten gevonden.");
-    state.products = products;
-    state.usingSample = false;
-    $("dataInfo").textContent = `${products.length} producten geladen uit ${file.name}.`;
-  } catch (err) {
-    $("dataInfo").textContent = "Fout: " + err.message;
-  }
+
+const CAT_LABELS = {
+  groente: "Groente", fruit: "Fruit", vlees: "Vlees", vis: "Vis", vega: "Vega",
+  zuivel: "Zuivel", brood: "Brood", beleg: "Beleg", aardappel_pasta: "Aardappel & pasta",
+  snack: "Snacks", overig: "Overig",
+};
+
+function filterProducts(query) {
+  const q = query.toLowerCase().trim();
+  const matches = state.products.filter((p) =>
+    !q || p.naam.toLowerCase().includes(q) || (CAT_LABELS[p.categorie] || "").toLowerCase().includes(q));
+  return { shown: matches.slice(0, 300), total: matches.length };
+}
+
+function productTable({ shown, total }) {
+  const info = `<p class="muted small">${total} producten${total > shown.length ? ` (eerste ${shown.length} getoond, zoek om te filteren)` : ""}</p>`;
+  const rows = shown.map((p) => `<tr>
+      <td>${esc(p.naam)}<div class="muted small">${esc(p.hoeveelheid || "")}</div></td>
+      <td>${esc(CAT_LABELS[p.categorie] || "Overig")}</td>
+      <td class="num">${p.prijs_cent != null ? euro(p.prijs_cent) : "–"}</td></tr>`).join("");
+  return `${info}<table><thead><tr><th>Product</th><th>Categorie</th><th class="num">Prijs</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderLists() {
+  $("prodCount").textContent = state.products.length;
+  $("sideBody").innerHTML = productTable(filterProducts($("sideSearch").value));
+  $("mobileBody").innerHTML = productTable(filterProducts($("mobileSearch").value));
+}
+
+let returnTo = "wizard";
+$("sideSearch").addEventListener("input", renderLists);
+$("mobileSearch").addEventListener("input", renderLists);
+$("openProducts").addEventListener("click", () => {
+  returnTo = $("result").classList.contains("hidden") ? "wizard" : "result";
+  $("wizard").classList.add("hidden");
+  $("result").classList.add("hidden");
+  $("openProducts").classList.add("hidden");
+  $("productPage").classList.remove("hidden");
+  window.scrollTo(0, 0);
+});
+$("backProducts").addEventListener("click", () => {
+  $("productPage").classList.add("hidden");
+  $("openProducts").classList.remove("hidden");
+  $(returnTo).classList.remove("hidden");
+  window.scrollTo(0, 0);
 });
 
-renderStep();
+async function loadProducts() {
+  $("step").innerHTML = '<p class="muted">Producten laden…</p>';
+  try {
+    const res = await fetch("jumbo_producten.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const raw = await res.json();
+    state.products = normalizeProducts(raw);
+    if (!state.products.length) throw new Error("geen bruikbare producten in het bestand");
+    renderStep();
+    renderLists();
+  } catch (err) {
+    $("step").innerHTML = `<h2>Producten niet geladen</h2>
+      <p class="muted">Zorg dat jumbo_producten.json in dezelfde map staat als deze pagina.
+      Open de site via een webadres (bijv. GitHub Pages), niet als los bestand. (${esc(err.message)})</p>`;
+    $("nav").innerHTML = "";
+  }
+}
+loadProducts();
 </script>
 <script>
 (function () {

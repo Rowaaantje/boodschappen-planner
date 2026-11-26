@@ -1,4 +1,4 @@
-const CACHE = 'smart-grocery-v1.1';
+const CACHE = 'smart-grocery-v1.2';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -16,11 +16,25 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== location.origin) return;
+
+  // Productdata en pagina: eerst netwerk, dan cache (nieuwe versies komen direct door)
+  if (url.pathname.endsWith('.json') || event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(event.request, copy));
+        return res;
+      }).catch(() => caches.match(event.request).then((hit) => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Overige bestanden (iconen, manifest): eerst cache
   event.respondWith(
     caches.match(event.request).then((hit) => hit || fetch(event.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(event.request, copy));
       return res;
-    }).catch(() => caches.match('./index.html')))
+    }))
   );
 });
