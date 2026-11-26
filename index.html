@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#41695c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Smart Grocery">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Smart Grocery</title>
+<style>
+  :root {
+    --bg: #f7f9f7; --surface: #ffffff; --ink: #24352f; --muted: #718079;
+    --accent: #41695c; --accent-soft: #eaf1ed; --border: #dce5e1;
+    --warn-bg: #fff5e5; --warn-ink: #876b3b; --danger: #a33c3c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141b18; --surface: #1d2622; --ink: #e6efea; --muted: #97a7a0;
+      --accent: #8fc2ae; --accent-soft: #24332d; --border: #33423b;
+      --warn-bg: #3a3020; --warn-ink: #e8c98a; --danger: #e08a8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 28px; margin: 0 0 6px; }
+  h2 { font-size: 22px; margin: 0 0 6px; }
+  .kicker { color: var(--accent); letter-spacing: 2px; font-size: 12px; font-weight: 800; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin: 20px 0; }
+  .progress { height: 6px; background: var(--border); border-radius: 3px; margin: 20px 0 8px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--accent); transition: width .3s; }
+  label.field { display: block; font-weight: 700; margin: 18px 0 8px; }
+  input[type="text"], input[type="number"] {
+    width: 100%; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+    padding: 10px 16px; border-radius: 999px; font: inherit; cursor: pointer; min-width: 44px;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .actions { display: flex; gap: 10px; margin-top: 28px; }
+  .btn {
+    flex: 1; font: inherit; font-weight: 700; padding: 15px; border-radius: 14px; border: none;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .btn.secondary { background: var(--accent-soft); color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--border); font-size: 15px; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .total { font-weight: 800; font-size: 18px; }
+  .notice { background: var(--warn-bg); color: var(--warn-ink); border-radius: 14px; padding: 16px; margin: 16px 0; font-size: 14px; }
+  .over { color: var(--danger); font-weight: 700; }
+  .hidden { display: none; }
+  .small { font-size: 13px; }
+  .file { margin-top: 12px; font-size: 14px; }
+  .none { color: var(--muted); font-style: italic; padding: 10px 0; }
+  @media print { .no-print { display: none; } body { background: #fff; color: #000; } .card { border: none; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="kicker">SMART GROCERY</div>
+  <h1 id="title">Slimmer boodschappen doen.</h1>
+
+  <!-- ===== Wizard ===== -->
+  <section id="wizard">
+    <div class="progress"><div id="bar" style="width:0%"></div></div>
+    <p class="muted small" id="stepLabel"></p>
+
+    <div class="card" id="step"></div>
+    <div class="actions" id="nav"></div>
+  </section>
+
+  <!-- ===== Resultaat ===== -->
+  <section id="result" class="hidden">
+    <div class="card">
+      <h2>Jouw boodschappenlijst</h2>
+      <p class="muted" id="resultMeta"></p>
+      <div id="resultBody"></div>
+    </div>
+    <div id="resultNotice"></div>
+    <div class="actions no-print">
+      <button class="btn secondary" id="editBtn">Gegevens aanpassen</button>
+      <button class="btn" id="printBtn">Afdrukken</button>
+    </div>
+  </section>
+
+  <div class="card no-print" style="margin-top:32px">
+    <strong>Productdata</strong>
+    <p class="muted small">
+      Er worden nu voorbeeldproducten gebruikt met <em>testprijzen</em>. Laad hieronder je eigen
+      <code>jumbo_producten.json</code> van de scraper voor echte prijzen.
+    </p>
+    <input type="file" id="fileInput" accept=".json,application/json" class="file">
+    <div class="muted small" id="dataInfo"></div>
+  </div>
+</main>
+
+<script>
+// ---------- Config ----------
+const STEPS = ["budget", "days", "people", "allergies", "diet", "meals"];
+const ALLERGY_OPTIONS = ["Gluten", "Lactose", "Noten", "Ei", "Vis", "Soja"];
+const DIET_OPTIONS = ["Vegetarisch", "Veganistisch", "Glutenvrij"];
+const MEAL_OPTIONS = ["Ontbijt", "Lunch", "Avondeten", "Snacks"];
+
+// Welke categorieën per maaltijd, en hoeveel "pakken per persoon per dag" (schatting)
+const MEAL_TEMPLATE = {
+  "Ontbijt":    [["brood", 0.3], ["zuivel", 0.25], ["beleg", 0.1]],
+  "Lunch":      [["brood", 0.3], ["beleg", 0.15], ["groente", 0.15], ["fruit", 0.1]],
+  "Avondeten":  [["vlees", 0.25], ["vis", 0.1], ["vega", 0.1], ["groente", 0.2], ["aardappel_pasta", 0.2], ["zuivel", 0.05]],
+  "Snacks":     [["snack", 0.15], ["fruit", 0.1]],
+};
+const OPTIONAL_CATEGORIES = new Set(["snack", "beleg", "fruit"]); // worden eerst geschrapt bij te hoog budget
+
+// Voorbeelddata (testprijzen, NIET actueel)
+const SAMPLE_PRODUCTS = [
+  { naam: "Voorbeeld brood (800 g)", prijs_cent: 129, hoeveelheid: "800 g", categorie: "brood", allergenen: ["Gluten"], dieet: [] },
+  { naam: "Voorbeeld glutenvrij brood", prijs_cent: 329, hoeveelheid: "400 g", categorie: "brood", allergenen: [], dieet: ["Glutenvrij"] },
+  { naam: "Voorbeeld halfvolle melk (1 L)", prijs_cent: 129, hoeveelheid: "1 L", categorie: "zuivel", allergenen: ["Lactose"], dieet: ["Vegetarisch"] },
+  { naam: "Voorbeeld havermelk (1 L)", prijs_cent: 189, hoeveelheid: "1 L", categorie: "zuivel", allergenen: [], dieet: ["Veganistisch", "Vegetarisch"] },
+  { naam: "Voorbeeld kipfilet (500 g)", prijs_cent: 749, hoeveelheid: "500 g", categorie: "vlees", allergenen: [], dieet: [] },
+  { naam: "Voorbeeld gehakt (500 g)", prijs_cent: 599, hoeveelheid: "500 g", categorie: "vlees", allergenen: [], dieet: [] },
+  { naam: "Voorbeeld zalmfilet (300 g)", prijs_cent: 999, hoeveelheid: "300 g", categorie: "vis", allergenen: ["Vis"], dieet: [] },
+  { naam: "Voorbeeld tofu (300 g)", prijs_cent: 229, hoeveelheid: "300 g", categorie: "vega", allergenen: ["Soja"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld paprika (3 stuks)", prijs_cent: 199, hoeveelheid: "3 stuks", categorie: "groente", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld broccoli (500 g)", prijs_cent: 179, hoeveelheid: "500 g", categorie: "groente", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld aardappelen (2 kg)", prijs_cent: 329, hoeveelheid: "2 kg", categorie: "aardappel_pasta", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld pasta (500 g)", prijs_cent: 139, hoeveelheid: "500 g", categorie: "aardappel_pasta", allergenen: ["Gluten"], dieet: ["Vegetarisch", "Veganistisch"] },
+  { naam: "Voorbeeld appels (1,5 kg)", prijs_cent: 195, hoeveelheid: "1,5 kg", categorie: "fruit", allergenen: [], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld kaas plakken (400 g)", prijs_cent: 579, hoeveelheid: "400 g", categorie: "beleg", allergenen: ["Lactose"], dieet: ["Vegetarisch", "Glutenvrij"] },
+  { naam: "Voorbeeld pindakaas (350 g)", prijs_cent: 249, hoeveelheid: "350 g", categorie: "beleg", allergenen: ["Noten"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld eieren (10 stuks)", prijs_cent: 299, hoeveelheid: "10 stuks", categorie: "zuivel", allergenen: ["Ei"], dieet: ["Vegetarisch", "Glutenvrij"] },
+  { naam: "Voorbeeld noten-mix (200 g)", prijs_cent: 349, hoeveelheid: "200 g", categorie: "snack", allergenen: ["Noten"], dieet: ["Vegetarisch", "Veganistisch", "Glutenvrij"] },
+  { naam: "Voorbeeld crackers (200 g)", prijs_cent: 159, hoeveelheid: "200 g", categorie: "snack", allergenen: ["Gluten"], dieet: ["Vegetarisch", "Veganistisch"] },
+];
+
+// ---------- State ----------
+const state = {
+  step: 0,
+  budget: 100,
+  days: 7,
+  people: 2,
+  allergies: [],
+  diets: [],
+  meals: ["Ontbijt", "Lunch", "Avondeten"],
+  products: SAMPLE_PRODUCTS,
+  usingSample: true,
+};
+
+// ---------- Helpers ----------
+const $ = (id) => document.getElementById(id);
+const euro = (cent) => "€ " + (cent / 100).toFixed(2).replace(".", ",");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Eenvoudige categorie- en allergeen-herkenning op basis van de productnaam (scraper levert dit niet)
+function guessMeta(p) {
+  const n = p.naam.toLowerCase();
+  const rules = [
+    [/brood|bolletje|stokbrood|bao|broodje|bagel/, "brood", ["Gluten"]],
+    [/melk|kaas|yoghurt|boter|kwark|skyr|room|ei(eren)?\b|eieren/, "zuivel", ["Lactose"]],
+    [/kip|gehakt|worst|spek|vlees|rund|varken/, "vlees", []],
+    [/zalm|tonijn|kabeljauw|haring|vis\b|garnaal/, "vis", ["Vis"]],
+    [/tofu|tempeh|seitan|vega/, "vega", ["Soja"]],
+    [/pasta|rijst|aardappel|noedel|macaroni|spaghetti/, "aardappel_pasta", []],
+    [/appel|peer|banaan|mandarijn|druif|aardbei/, "fruit", []],
+    [/paprika|komkommer|tomaat|broccoli|wortel|sla|ui\b|champignon/, "groente", []],
+    [/pindakaas|hagelslag|jam|beleg|smeersel/, "beleg", ["Noten"]],
+    [/chips|koek|snoep|chocolade|noten|crackers/, "snack", []],
+  ];
+  let categorie = "overig", allergenen = [];
+  for (const [re, cat, al] of rules) if (re.test(n)) { categorie = cat; allergenen = al; break; }
+  if (/noot|pinda|amandel|cashew|walnoot/.test(n) && !allergenen.includes("Noten")) allergenen.push("Noten");
+  if (/gluten ?vrij|glutenvrij/.test(n)) allergenen = allergenen.filter((a) => a !== "Gluten");
+  return { categorie, allergenen, dieet: p.dieet || [] };
+}
+
+function normalizeProducts(raw) {
+  return raw
+    .filter((p) => p && p.naam && Number.isFinite(p.prijs_cent))
+    .map((p) => ({ ...p, ...(p.categorie ? {} : guessMeta(p)) }));
+}
+
+function isAllowed(p) {
+  if (state.allergies.some((a) => p.allergenen?.includes(a))) return false;
+  if (state.diets.includes("Vegetarisch") && ["vlees", "vis"].includes(p.categorie) && !p.dieet?.includes("Vegetarisch")) return false;
+  if (state.diets.includes("Veganistisch") && !p.dieet?.includes("Veganistisch")) return false;
+  if (state.diets.includes("Glutenvrij") && !p.dieet?.includes("Glutenvrij")) return false;
+  return true;
+}
+
+function cheapest(categorie) {
+  return state.products
+    .filter((p) => p.categorie === categorie && isAllowed(p))
+    .sort((a, b) => a.prijs_cent - b.prijs_cent)[0] || null;
+}
+
+// ---------- Plan genereren ----------
+function buildPlan() {
+  // Hoeveelheid per categorie: dagen × personen × gewicht per maaltijd
+  const need = new Map();
+  for (const meal of state.meals) {
+    for (const [cat, weight] of MEAL_TEMPLATE[meal] || []) {
+      need.set(cat, (need.get(cat) || 0) + weight);
+    }
+  }
+  let lines = [];
+  for (const [cat, weight] of need) {
+    const product = cheapest(cat);
+    if (!product) continue;
+    const qty = Math.max(1, Math.ceil(weight * state.days * state.people));
+    lines.push({ cat, product, qty, cost: product.prijs_cent * qty });
+  }
+
+  // Te duur? Schrap optionele categorieën, daarna de duurste rest
+  let total = () => lines.reduce((s, l) => s + l.cost, 0);
+  const budgetCent = Math.round(state.budget * 100);
+  const dropped = [];
+  for (const cat of [...OPTIONAL_CATEGORIES]) {
+    if (total() <= budgetCent) break;
+    const i = lines.findIndex((l) => l.cat === cat);
+    if (i >= 0) { dropped.push(lines[i].product.naam); lines.splice(i, 1); }
+  }
+  const over = total() > budgetCent;
+  return { lines, total: total(), budgetCent, dropped, over };
+}
+
+// ---------- Wizard ----------
+function chipGroup(options, selected, onToggle) {
+  return `<div class="chips">${options.map((o) =>
+    `<button class="chip" aria-pressed="${selected.includes(o)}" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
+}
+
+function renderStep() {
+  const s = STEPS[state.step];
+  $("bar").style.width = `${((state.step + 1) / STEPS.length) * 100}%`;
+  $("stepLabel").textContent = `Stap ${state.step + 1} van ${STEPS.length}`;
+  let html = "";
+  if (s === "budget") {
+    html = `<h2>Wat is je budget?</h2><p class="muted">Het totaal voor je boodschappenlijst.</p>
+      <label class="field" for="budget">Budget (€)</label>
+      <input type="number" id="budget" min="1" step="1" value="${state.budget}">`;
+  } else if (s === "days") {
+    html = `<h2>Jouw periode</h2><p class="muted">Voor hoeveel dagen wil je boodschappen in huis hebben?</p>
+      <label class="field" for="days">Aantal dagen</label>
+      <input type="number" id="days" min="1" step="1" value="${state.days}">`;
+  } else if (s === "people") {
+    html = `<h2>Jouw huishouden</h2><p class="muted">Zo kunnen we hoeveelheden goed afstemmen.</p>
+      <label class="field" for="people">Aantal personen</label>
+      <input type="number" id="people" min="1" step="1" value="${state.people}">`;
+  } else if (s === "allergies") {
+    html = `<h2>Allergieën</h2><p class="muted">Selecteer alles waar we rekening mee moeten houden.</p>
+      ${chipGroup(ALLERGY_OPTIONS, state.allergies)}`;
+  } else if (s === "diet") {
+    html = `<h2>Dieetwensen</h2><p class="muted">Je kunt meerdere opties kiezen.</p>
+      ${chipGroup(DIET_OPTIONS, state.diets)}`;
+  } else if (s === "meals") {
+    html = `<h2>Eetmomenten</h2><p class="muted">Welke maaltijden wil je in je plan?</p>
+      ${chipGroup(MEAL_OPTIONS, state.meals)}`;
+  }
+  $("step").innerHTML = html;
+
+  const last = state.step === STEPS.length - 1;
+  $("nav").innerHTML = `
+    ${state.step > 0 ? '<button class="btn secondary" id="back">Terug</button>' : ""}
+    <button class="btn" id="next" ${last && !state.meals.length ? "disabled" : ""}>${last ? "Bekijk lijst" : "Verder"}</button>`;
+
+  $("back")?.addEventListener("click", () => { readInputs(); state.step--; renderStep(); });
+  $("next").addEventListener("click", () => { readInputs(); if (last) showResult(); else { state.step++; renderStep(); } });
+  $("step").querySelectorAll(".chip").forEach((btn) => btn.addEventListener("click", () => {
+    const v = btn.dataset.val;
+    const list = s === "allergies" ? state.allergies : s === "diet" ? state.diets : state.meals;
+    const i = list.indexOf(v);
+    i >= 0 ? list.splice(i, 1) : list.push(v);
+    renderStep();
+  }));
+}
+
+function readInputs() {
+  const s = STEPS[state.step];
+  if (s === "budget") state.budget = Math.max(1, Number($("budget").value.replace(",", ".")) || 1);
+  if (s === "days") state.days = Math.max(1, Math.floor(Number($("days").value)) || 1);
+  if (s === "people") state.people = Math.max(1, Math.floor(Number($("people").value)) || 1);
+}
+
+// ---------- Resultaat ----------
+function showResult() {
+  const plan = buildPlan();
+  $("wizard").classList.add("hidden");
+  $("result").classList.remove("hidden");
+  $("resultMeta").textContent =
+    `${state.people} ${state.people === 1 ? "persoon" : "personen"} · ${state.days} dagen · budget ${euro(plan.budgetCent)}`;
+
+  if (!plan.lines.length) {
+    $("resultBody").innerHTML = `<p class="none">Geen producten gevonden die passen bij je voorkeuren.</p>`;
+  } else {
+    $("resultBody").innerHTML = `<table>
+      <thead><tr><th>Product</th><th class="num">Aantal</th><th class="num">Prijs</th></tr></thead>
+      <tbody>${plan.lines.map((l) => `<tr>
+        <td>${esc(l.product.naam)}<div class="muted small">${esc(l.product.hoeveelheid || "")}</div></td>
+        <td class="num">${l.qty}×</td>
+        <td class="num">${euro(l.cost)}</td></tr>`).join("")}
+      </tbody>
+      <tfoot><tr><td class="total" colspan="2">Totaal</td><td class="num total ${plan.over ? "over" : ""}">${euro(plan.total)}</td></tr></tfoot>
+    </table>`;
+  }
+
+  let notes = "";
+  if (plan.over) notes += `<div class="notice">Het totaal ligt boven je budget van ${euro(plan.budgetCent)}. Verhoog het budget of kies minder maaltijden.</div>`;
+  if (plan.dropped.length) notes += `<div class="notice">Om binnen budget te blijven zijn deze optionele items weggelaten: ${esc(plan.dropped.join(", "))}.</div>`;
+  if (state.usingSample) notes += `<div class="notice">Let op: dit gebruikt voorbeeldprijzen. Laad je scraper-bestand voor actuele prijzen.</div>`;
+  notes += `<p class="muted small">De hoeveelheden zijn een schatting op basis van dagen, personen en maaltijden. Controleer allergenen altijd zelf op het etiket, want die worden hier uit de productnaam afgeleid.</p>`;
+  $("resultNotice").innerHTML = notes;
+}
+
+// ---------- Events ----------
+$("editBtn").addEventListener("click", () => { $("result").classList.add("hidden"); $("wizard").classList.remove("hidden"); state.step = 0; renderStep(); });
+$("printBtn").addEventListener("click", () => window.print());
+
+$("fileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const raw = JSON.parse(await file.text());
+    if (!Array.isArray(raw)) throw new Error("Verwacht een lijst met producten.");
+    const products = normalizeProducts(raw);
+    if (!products.length) throw new Error("Geen bruikbare producten gevonden.");
+    state.products = products;
+    state.usingSample = false;
+    $("dataInfo").textContent = `${products.length} producten geladen uit ${file.name}.`;
+  } catch (err) {
+    $("dataInfo").textContent = "Fout: " + err.message;
+  }
+});
+
+renderStep();
+</script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>
