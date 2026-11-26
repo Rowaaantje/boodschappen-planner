@@ -70,6 +70,9 @@
   @media print { .no-print { display: none; } body { background: #fff; color: #000; } .card { border: none; } }
   .done td { color: var(--muted); text-decoration: line-through; transition: color .3s, opacity .3s; }
   .tick { width: 22px; height: 22px; cursor: pointer; }
+  .quick-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .quick-btn { border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 10px 14px; border-radius: 12px; font: inherit; cursor: pointer; }
+  .quick-btn[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -106,6 +109,7 @@
     </div>
     <div id="resultNotice"></div>
     <div class="actions no-print">
+      <button class="btn secondary" id="shareBtn">Deel lijst</button>
       <button class="btn secondary" id="editBtn">Gegevens aanpassen</button>
       <button class="btn" id="printBtn">Afdrukken</button>
     </div>
@@ -208,9 +212,11 @@ function normalizeProducts(raw) {
 
 function isAllowed(p) {
   if (state.allergies.some((a) => p.allergenen?.includes(a))) return false;
-  if (state.diets.includes("Vegetarisch") && ["vlees", "vis"].includes(p.categorie) && !p.dieet?.includes("Vegetarisch")) return false;
-  if (state.diets.includes("Veganistisch") && !p.dieet?.includes("Veganistisch")) return false;
-  if (state.diets.includes("Glutenvrij") && !p.dieet?.includes("Glutenvrij")) return false;
+  const cat = p.categorie;
+  if (state.diets.includes("Vegetarisch") && ["vlees", "vis"].includes(cat)) return false;
+  if (state.diets.includes("Veganistisch") && ["vlees", "vis", "zuivel"].includes(cat)) return false;
+  if (state.diets.includes("Veganistisch") && p.allergenen?.some((a) => a === "Ei" || a === "Lactose")) return false;
+  if (state.diets.includes("Glutenvrij") && p.allergenen?.includes("Gluten")) return false;
   return true;
 }
 
@@ -302,6 +308,16 @@ function chipGroup(options, selected, onToggle) {
     `<button class="chip" aria-pressed="${selected.includes(o)}" data-val="${esc(o)}">${esc(o)}</button>`).join("")}</div>`;
 }
 
+const QUICK = { budget: [50, 75, 100, 150], days: [3, 7, 14], people: [1, 2, 3, 4] };
+function quickHtml(s) {
+  const opts = QUICK[s];
+  if (!opts) return "";
+  const current = state[s];
+  return `<div class="quick-row">${opts.map((v) =>
+    `<button class="quick-btn" data-step="${s}" data-val="${v}" aria-pressed="${current === v}">${s === "budget" ? "€ " + v : v}</button>`
+  ).join("")}</div>`;
+}
+
 function renderStep() {
   renderSavedBox();
   const s = STEPS[state.step];
@@ -330,6 +346,7 @@ function renderStep() {
     html = `<h2>Eetmomenten</h2><p class="muted">Welke maaltijden wil je in je plan?</p>
       ${chipGroup(MEAL_OPTIONS, state.meals)}`;
   }
+  html += quickHtml(s);
   $("step").innerHTML = html;
 
   const last = state.step === STEPS.length - 1;
@@ -337,6 +354,10 @@ function renderStep() {
     ${state.step > 0 ? '<button class="btn secondary" id="back">Terug</button>' : ""}
     <button class="btn" id="next" ${last && !state.meals.length ? "disabled" : ""}>${last ? "Bekijk lijst" : "Verder"}</button>`;
 
+  $("step").querySelectorAll(".quick-btn").forEach((btn) => btn.addEventListener("click", () => {
+    state[btn.dataset.step] = Number(btn.dataset.val);
+    renderStep();
+  }));
   $("back")?.addEventListener("click", () => { readInputs(); state.step--; renderStep(); });
   $("next").addEventListener("click", () => { readInputs(); if (last) showResult(); else { state.step++; renderStep(); } });
   $("step").querySelectorAll(".chip").forEach((btn) => btn.addEventListener("click", () => {
@@ -371,6 +392,7 @@ function renderResultBody() {
   $("resultBody").innerHTML = `
     <p class="small" style="margin:8px 0"><strong>Nog te halen:</strong> ${left.length} producten, ${euro(leftCost)}
       <span class="muted">(${doneLines.length} afgevinkt)</span></p>
+    <div class="progress"><div style="width:${plan.lines.length ? Math.round(doneLines.length / plan.lines.length * 100) : 0}%"></div></div>
     <table>
       <thead><tr><th style="width:34px"></th><th>Product</th><th class="num">Aantal</th><th class="num">Prijs</th></tr></thead>
       <tbody>${[...top, ...bottom].map((l) => {
@@ -476,6 +498,24 @@ function showResult() {
 }
 
 // ---------- Events ----------
+function listText() {
+  const plan = state.plan;
+  const lines = plan.lines.map((l) =>
+    `${state.checked.has(l.product.url) ? "✓" : "☐"} ${l.qty}× ${l.product.naam} (${euro(l.cost)})`);
+  return `Boodschappenlijst (${state.people} ${state.people === 1 ? "persoon" : "personen"}, ${state.days} dagen)\n${lines.join("\n")}\nTotaal: ${euro(plan.total)}`;
+}
+$("shareBtn").addEventListener("click", async () => {
+  const text = listText();
+  if (navigator.share) {
+    try { await navigator.share({ title: "Boodschappenlijst", text }); return; } catch (err) { /* geannuleerd */ }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    $("saveStatus").textContent = "Lijst gekopieerd. Plak hem in WhatsApp of een notitie.";
+  } catch (err) {
+    $("saveStatus").textContent = "Delen lukt niet op dit apparaat.";
+  }
+});
 $("resultBody").addEventListener("change", (e) => {
   const box = e.target.closest ? e.target.closest(".tick") : null;
   if (!box) return;
